@@ -229,7 +229,10 @@
 		const cols = 6;
 
 		function scrollTo(pos, updateInput = true) {
-			document.getSelection()?.removeAllRanges();
+			if (!(document.activeElement instanceof HTMLInputElement)) {
+				document.getSelection()?.removeAllRanges();
+			}
+
 			const r = pos % 10n;
 			document.querySelector('table').style.transform = `translate(0, -${3n * r}px)`;
 			const loadFrom = (pos / 10n) * 6n + 1n;
