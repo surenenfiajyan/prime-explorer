@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>Prime number explorer</title>
+</head>
+
+<style>
+	.container {
+		position: relative;
+		overflow: hidden;
+		border: 1px solid black;
+		background: yellow;
+
+		height: 500px;
+
+		>* {
+			position: absolute;
+		}
+
+		table {
+			top: 0;
+			left: 0;
+			width: calc(100% - 20px);
+			border-collapse: collapse;
+			table-layout: fixed;
+
+			td {
+				border: 1px solid black;
+				height: 30px;
+				vertical-align: middle;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+		}
+
+		button {
+			width: 20px;
+			height: 20px;
+			right: 0;
+			border: none;
+			background: red;
+			box-sizing: border-box;
+			border: 1px solid black;
+		}
+
+		.scroll-track {
+			position: absolute;
+			background: rebeccapurple;
+			top: 20px;
+			bottom: 20px;
+			right: 0;
+			width: 20px;
+
+			div {
+				position: relative;
+				height: 100px;
+				box-sizing: border-box;
+				border: 1px solid black;
+				background: red;
+			}
+		}
+
+		.up {
+			top: 0;
+		}
+
+		.down {
+			bottom: 0;
+		}
+	}
+</style>
+
+<body>
+	<h2>Prime numbers from 1 to 1000000000000</h2>
+	<script id="workerScript">
+		function init() {
+			let currentData = null;
+
+			self.onmessage = message => {
+				const data = message.data;
+				currentData = data;
+
+				setTimeout(() => {
+					if (data !== currentData) {
+						return;
+					}
+
+					console.log('Calculating', data);
+					const response = new Set(getPrimes(data.from, data.to));
+
+					setTimeout(() => {
+						if (data === currentData) {
+							self.postMessage(response);
+						}
+					}, 100);
+				}, 100);
+			};
+		}
+
+		function* getPrimes(from, to) {
+			from = BigInt(from);
+			to = BigInt(to);
+
+			function root(n) {
+				let a = 0n, b = n, c = n;
+
+				do {
+					c = (a + b + 1n) / 2n;
+
+					const sqr = c * c;
+
+					if (sqr > n) {
+						b = c - 1n;
+					} else {
+						a = c;
+					}
+				} while (a < b);
+
+				return a;
+			}
+
+			function getRecursively(n) {
+				if (n < 2n) {
+					return [];
+				}
+
+				if (n === 2n) {
+					return [{ prime: 2n, sum: 4n, available: true }];
+				}
+
+				if (n === 3n) {
+					return [{ prime: 2n, sum: 4n, available: true }, { prime: 3n, sum: 6n, available: true }];
+				}
+
+				const r = root(n);
+				const rootPrimes = getRecursively(r);
+				const rootPrimesCount = BigInt(rootPrimes.length);
+
+				for (let offset = rootPrimes.at(-1).prime + 1n; offset <= n; offset += rootPrimesCount) {
+					for (let i = 0n; i < rootPrimesCount; ++i) {
+						let start = rootPrimes[i].sum - offset;
+						const inc = rootPrimes[i].prime;
+
+						while (start < 0n) {
+							start += inc;
+						}
+
+						while (start < rootPrimesCount) {
+							rootPrimes[start].available = false;
+							start += inc;
+						}
+
+						rootPrimes[i].sum = start + offset;
+					}
+
+					for (let i = 0n; i < rootPrimesCount; ++i) {
+						const prime = i + offset;
+
+						if (rootPrimes[i].available && prime <= n) {
+							rootPrimes.push({ prime, sum: 2n * prime, available: true });
+						} else {
+							rootPrimes[i].available = true;
+						}
+					}
+				}
+
+				for (let i = 0n; i < rootPrimesCount; ++i) {
+					rootPrimes[i].sum = 2n * rootPrimes[i].prime;
+				}
+
+				return rootPrimes;
+			}
+
+			const r = root(to);
+			const rootPrimes = getRecursively(r);
+			const rootPrimesCount = BigInt(rootPrimes.length);
+
+			for (const p of rootPrimes) {
+				if (p.prime >= from) {
+					yield p.prime;
+				}
+			}
+
+			let startNumber = rootPrimes.at(-1).prime + 1n;
+			startNumber = startNumber > from ? startNumber : from;
+
+			for (let offset = startNumber; offset <= to; offset += rootPrimesCount) {
+				for (let i = 0n; i < rootPrimesCount; ++i) {
+					let start = rootPrimes[i].sum - offset;
+					const inc = rootPrimes[i].prime;
+
+					if (start < 0n) {
+						start -= (start / inc) * inc;
+
+						while (start < 0) {
+							start += inc;
+						}
+					}
+
+					while (start < rootPrimesCount) {
+						rootPrimes[start].available = false;
+						start += inc;
+					}
+
+					rootPrimes[i].sum = start + offset;
+				}
+
+				const last = rootPrimesCount - 1n + offset > to ? to - offset + 1n : rootPrimesCount;
+
+				for (let i = 0n; i < last; ++i) {
+					if (rootPrimes[i].available) {
+						yield i + offset;
+					} else {
+						rootPrimes[i].available = true;
+					}
+				}
+			}
+		}
+	</script>
+
+	<script>
+		const script = document.getElementById('workerScript').text;
+		const dataUrl = `data:text/javascript;base64,${(btoa(script + '\ninit();'))}`;
+		const worker = new Worker(dataUrl);
+
+		let scrollPos = 0n, from = -1n, to = -1n, loadedPrimes = new Set();
+		const lastScrolPos = 1666666666520n;
+		const cols = 6;
+
+		function scrollTo(pos, updateInput = true) {
+			document.getSelection()?.removeAllRanges();
+			const r = pos % 10n;
+			document.querySelector('table').style.transform = `translate(0, -${3n * r}px)`;
+			const loadFrom = (pos / 10n) * 6n + 1n;
+			const loadTo = loadFrom + 5000n;
+
+			function paint() {
+				document.querySelectorAll('td').forEach((el, i) => {
+					const num = BigInt(i) + loadFrom;
+					el.title = el.innerText = num;
+
+					if (updateInput) {
+						updateInput = false;
+						document.getElementById('navigation').value = num;
+					}
+
+					el.style.background = loadedPrimes.has(num) ? 'blue' : '';
+				});
+			}
+
+			if (loadFrom < from || loadTo > to) {
+				from = loadFrom - 10000n;
+				to = loadTo + 10000n;
+
+				worker.postMessage({ from, to });
+				worker.onmessage = (message) => {
+					loadedPrimes = message.data;
+					paint();
+				}
+			}
+
+			paint();
+
+			document.querySelector('.inner').style.marginTop = `${360n * pos / lastScrolPos}px`;
+
+
+			scrollPos = pos;
+		}
+
+		function up(target) {
+			if (scrollPos > 0n) {
+				scrollTo(scrollPos - 1n)
+			}
+
+			setTimeout(() => {
+				if (target.matches(':active')) {
+					up(target);
+				}
+			}, 10);
+		}
+
+		function down(target) {
+			if (scrollPos < lastScrolPos) {
+				scrollTo(scrollPos + 1n)
+			}
+
+			setTimeout(() => {
+				if (target.matches(':active')) {
+					down(target);
+				}
+			}, 10);
+		}
+
+		function onScroll(ev) {
+			event.preventDefault();
+			const newPos = BigInt(Math.floor(ev.deltaY)) + scrollPos;
+
+			if (newPos >= 0n && newPos <= lastScrolPos) {
+				scrollTo(newPos);
+			}
+		}
+
+		function navigateTo(to) {
+			to = to * 10n / 6n - 1n;
+			to -= to % 10n;
+
+			if (to < 0n) {
+				to = 0n;
+			}
+
+			if (to > lastScrolPos) {
+				to = lastScrolPos;
+			}
+
+			scrollTo(to, false);
+		}
+
+		let startY = -1;
+		let startScrollPosition = 0n;
+		let isSscrolling = false;
+
+		function start(event, swipe = false) {
+			isSscrolling = swipe;
+
+			if (event instanceof MouseEvent) {
+				startY = event.clientY;
+			}
+
+			if (window.TouchEvent && event instanceof TouchEvent) {
+				startY = event.touches[0].clientY;
+				event.preventDefault();
+			}
+
+			startScrollPosition = scrollPos;
+
+			if (isSscrolling || event.target.closest('.inner')) {
+				return;
+			}
+
+			const box = document.querySelector('.inner').getBoundingClientRect();
+			const deviation = startY - (box.top + box.bottom) / 2;
+			const change = BigInt(Math.floor(deviation)) * lastScrolPos / 360n;
+
+			scrollPos = startScrollPosition = change + startScrollPosition;
+
+			if (scrollPos < 0n) {
+				scrollPos = 0n;
+			} else if (scrollPos > lastScrolPos) {
+				scrollPos = lastScrolPos;
+			}
+
+			scrollTo(scrollPos);
+		}
+
+		function move(event) {
+			if (startY >= 0) {
+				let y = -1;
+
+				if (event instanceof MouseEvent) {
+					y = event.clientY;
+					event.preventDefault();
+				}
+
+				if (window.TouchEvent && event instanceof TouchEvent) {
+					y = event.touches[0].clientY;
+				}
+
+				const change = isSscrolling ? - BigInt(Math.floor((y - startY) / 3)) : BigInt(Math.floor(y - startY)) * (lastScrolPos / 360n);
+
+				let newPos = change + startScrollPosition;
+
+				if (newPos < 0n) {
+					newPos = 0n;
+				} else if (newPos > lastScrolPos) {
+					newPos = lastScrolPos;
+				}
+
+				scrollTo(newPos);
+			}
+		}
+
+		function end(event) {
+			startY = -1;
+		}
+
+		window.onmousemove = move;
+		window.addEventListener('touchmove', move, { passive: true });
+		window.onmouseup = window.ontouchend = window.ontouchcancel = end;
+	</script>
+
+	<div class="container" onwheel="onScroll(event)">
+		<div class="scroll-track" onmousedown="start(event)" ontouchstart="start(event)">
+			<div class="inner"></div>
+		</div>
+		<button class="up" onmousedown="up(event.target)" onclick="up(event.target)"></button>
+		<table ontouchstart="start(event, true)">
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+				<td></td>
+			</tr>
+		</table>
+		<button class="down" onmousedown="down(event.target)" onclick="down(event.target)"></button>
+	</div>
+	<br>
+	<label class="Navigation label">
+		Navigate:
+		<input id="navigation" type="number" step="1" min="1" oninput="navigateTo(BigInt(event.target.value))">
+	</label>
+
+	<script>
+		scrollTo(0n);
+	</script>
+</body>
+
+</html>
