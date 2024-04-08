@@ -228,17 +228,31 @@
 		const lastScrolPos = 1666666666520n;
 		const cols = 6;
 
+
 		function scrollTo(pos, updateInput = true) {
+			function getPosData() {
+				const r = scrollPos % 10n;
+				const loadFrom = (scrollPos / 10n) * 6n + 1n;
+				const loadTo = loadFrom + 5000n;
+				const translation = -3n * r;
+				const innerMargin = 360n * scrollPos / lastScrolPos;
+
+				return { loadFrom, loadTo, translation, innerMargin };
+			}
+
+			scrollPos = pos;
+
 			if (!(document.activeElement instanceof HTMLInputElement)) {
 				document.getSelection()?.removeAllRanges();
 			}
 
-			const r = pos % 10n;
-			document.querySelector('table').style.transform = `translate(0, -${3n * r}px)`;
-			const loadFrom = (pos / 10n) * 6n + 1n;
-			const loadTo = loadFrom + 5000n;
-
 			function paint() {
+				const { loadFrom, translation, innerMargin } = getPosData();
+
+				console.log(innerMargin)
+				document.querySelector('.inner').style.marginTop = `${innerMargin}px`;
+				document.querySelector('table').style.transform = `translate(0, ${translation}px)`;
+
 				document.querySelectorAll('td').forEach((el, i) => {
 					const num = BigInt(i) + loadFrom;
 					el.title = el.innerText = num;
@@ -252,6 +266,8 @@
 				});
 			}
 
+			const { loadFrom, loadTo } = getPosData();
+
 			if (loadFrom < from || loadTo > to) {
 				from = loadFrom - 10000n;
 				to = loadTo + 10000n;
@@ -264,11 +280,6 @@
 			}
 
 			paint();
-
-			document.querySelector('.inner').style.marginTop = `${360n * pos / lastScrolPos}px`;
-
-
-			scrollPos = pos;
 		}
 
 		function up(target) {
