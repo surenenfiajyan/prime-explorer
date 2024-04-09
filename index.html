@@ -307,11 +307,10 @@
 
 		function onScroll(ev) {
 			event.preventDefault();
-			const newPos = BigInt(Math.floor(ev.deltaY)) + scrollPos;
-
-			if (newPos >= 0n && newPos <= lastScrolPos) {
-				scrollTo(newPos);
-			}
+			let newPos = BigInt(Math.floor(ev.deltaY)) + scrollPos;
+			newPos = newPos < 0n ? 0n : newPos;
+			newPos = newPos > lastScrolPos ? lastScrolPos : newPos;
+			scrollTo(newPos);
 		}
 
 		function navigateTo(to) {
