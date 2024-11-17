@@ -39,10 +39,29 @@
 			width: 20px;
 			height: 20px;
 			right: 0;
-			border: none;
 			background: red;
 			box-sizing: border-box;
 			border: 1px solid black;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+
+			&:last-of-type {
+				scale: -1;
+			}
+
+			&::before {
+				content: "";
+				background: black;
+				width: 15px;
+				height: 15px;
+				clip-path: polygon(50% 30%, 0% 70%, 100% 70%);
+			}
+
+			&:active {
+				background: blue;
+			}
 		}
 
 		.scroll-track {
@@ -52,6 +71,7 @@
 			bottom: 20px;
 			right: 0;
 			width: 20px;
+			cursor: pointer;
 
 			div {
 				position: relative;
@@ -59,6 +79,10 @@
 				box-sizing: border-box;
 				border: 1px solid black;
 				background: red;
+
+				&.active {
+					background: blue;
+				}
 			}
 		}
 
@@ -226,8 +250,7 @@
 		const worker = new Worker(dataUrl);
 
 		let scrollPos = 0n, from = -1n, to = -1n, loadedPrimes = new Set();
-		let lastScrolPos = 0n;
-		const cols = 6;
+		let lastScrollPos = 0n;
 		let scrollCoefficient = 0n;
 
 
@@ -237,7 +260,7 @@
 				const loadFrom = (scrollPos / 10n) * 6n + 1n;
 				const loadTo = loadFrom + 5000n;
 				const translation = -3n * r;
-				const innerMargin = scrollCoefficient * scrollPos / lastScrolPos;
+				const innerMargin = scrollCoefficient * scrollPos / lastScrollPos;
 
 				return { loadFrom, loadTo, translation, innerMargin };
 			}
@@ -296,7 +319,7 @@
 		}
 
 		function down(target) {
-			if (scrollPos < lastScrolPos) {
+			if (scrollPos < lastScrollPos) {
 				scrollTo(scrollPos + 1n)
 			}
 
@@ -311,7 +334,7 @@
 			event.preventDefault();
 			let newPos = BigInt(Math.floor(ev.deltaY)) + scrollPos;
 			newPos = newPos < 0n ? 0n : newPos;
-			newPos = newPos > lastScrolPos ? lastScrolPos : newPos;
+			newPos = newPos > lastScrollPos ? lastScrollPos : newPos;
 			scrollTo(newPos);
 		}
 
@@ -323,8 +346,8 @@
 				to = 0n;
 			}
 
-			if (to > lastScrolPos) {
-				to = lastScrolPos;
+			if (to > lastScrollPos) {
+				to = lastScrollPos;
 			}
 
 			scrollTo(to, false);
@@ -336,6 +359,10 @@
 
 		function start(event, swipe = false) {
 			isSscrolling = swipe;
+
+			if (!isSscrolling) {
+				document.querySelector('.inner').classList.add('active');
+			}
 
 			if (event instanceof MouseEvent) {
 				startY = event.clientY;
@@ -354,14 +381,14 @@
 
 			const box = document.querySelector('.inner').getBoundingClientRect();
 			const deviation = startY - (box.top + box.bottom) / 2;
-			const change = BigInt(Math.floor(deviation)) * lastScrolPos / scrollCoefficient;
+			const change = BigInt(Math.floor(deviation)) * lastScrollPos / scrollCoefficient;
 
 			scrollPos = startScrollPosition = change + startScrollPosition;
 
 			if (scrollPos < 0n) {
 				scrollPos = 0n;
-			} else if (scrollPos > lastScrolPos) {
-				scrollPos = lastScrolPos;
+			} else if (scrollPos > lastScrollPos) {
+				scrollPos = lastScrollPos;
 			}
 
 			scrollTo(scrollPos);
@@ -380,14 +407,14 @@
 					y = event.touches[0].clientY;
 				}
 
-				const change = isSscrolling ? - BigInt(Math.floor((y - startY) / 3)) : BigInt(Math.floor(y - startY)) * (lastScrolPos / scrollCoefficient);
+				const change = isSscrolling ? -BigInt(Math.floor((y - startY) / 3)) : BigInt(Math.floor(y - startY)) * (lastScrollPos / scrollCoefficient);
 
 				let newPos = change + startScrollPosition;
 
 				if (newPos < 0n) {
 					newPos = 0n;
-				} else if (newPos > lastScrolPos) {
-					newPos = lastScrolPos;
+				} else if (newPos > lastScrollPos) {
+					newPos = lastScrollPos;
 				}
 
 				scrollTo(newPos);
@@ -396,6 +423,7 @@
 
 		function end(event) {
 			startY = -1;
+			document.querySelector('.inner').classList.remove('active');
 		}
 
 		function resize() {
@@ -403,8 +431,8 @@
 			scrollCoefficient = BigInt(Math.round(containerHeight - 140));
 			const rowsToShow = Math.floor(containerHeight / 30 + 2);
 			document.querySelector('table').innerHTML = `<tr>${'<td></td>'.repeat(6)}</tr>`.repeat(rowsToShow);
-			lastScrolPos = 1666666666666n - BigInt(rowsToShow * 10 - 20);
-			scrollPos = scrollPos > lastScrolPos ? lastScrolPos : scrollPos;
+			lastScrollPos = 1666666666666n - BigInt(rowsToShow * 10 - 20);
+			scrollPos = scrollPos > lastScrollPos ? lastScrollPos : scrollPos;
 		}
 
 		window.onresize = () => {
