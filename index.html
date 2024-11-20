@@ -62,7 +62,7 @@
 				clip-path: polygon(50% 30%, 0% 70%, 100% 70%);
 			}
 
-			&:active {
+			&:active, &.active {
 				background: blue;
 			}
 		}
@@ -462,10 +462,10 @@
 		<div class="scroll-track" onmousedown="start(event)" ontouchstart="start(event)">
 			<div class="inner"></div>
 		</div>
-		<button class="up" ontouchstart="up(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" onmousedown="up(event.target)" onclick="up(event.target)"></button>
+		<button class="up" ontouchstart="up(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')" onmousedown="up(event.target)" onclick="up(event.target)"></button>
 		<table ontouchstart="start(event, true)">
 		</table>
-		<button class="down" ontouchstart="down(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" onmousedown="down(event.target)" onclick="down(event.target)"></button>
+		<button class="down" ontouchstart="down(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')" onmousedown="down(event.target)" onclick="down(event.target)"></button>
 	</div>
 	<br>
 	<label class="Navigation label">
