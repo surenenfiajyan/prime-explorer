@@ -2,6 +2,9 @@
 <html lang="en">
 
 <head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=428, maximum-scale=1, interactive-widget=resizes-content">
+	<meta name="description" content="Explore primes from 1 to 1000000000000">
 	<title>Prime number explorer</title>
 </head>
 
@@ -59,7 +62,7 @@
 				clip-path: polygon(50% 30%, 0% 70%, 100% 70%);
 			}
 
-			&:active {
+			&:active, &.active {
 				background: blue;
 			}
 		}
@@ -251,13 +254,14 @@
 
 		let scrollPos = 0n, from = -1n, to = -1n, loadedPrimes = new Set();
 		let lastScrollPos = 0n;
+		let columnsPerRow = 6n;
 		let scrollCoefficient = 0n;
 
 
 		function scrollTo(pos, updateInput = true) {
 			function getPosData() {
 				const r = scrollPos % 10n;
-				const loadFrom = (scrollPos / 10n) * 6n + 1n;
+				const loadFrom = (scrollPos / 10n) * columnsPerRow + 1n;
 				const loadTo = loadFrom + 5000n;
 				const translation = -3n * r;
 				const innerMargin = scrollCoefficient * scrollPos / lastScrollPos;
@@ -312,7 +316,7 @@
 			}
 
 			setTimeout(() => {
-				if (target.matches(':active')) {
+				if (target.matches(':active, .active')) {
 					up(target);
 				}
 			}, 10);
@@ -324,7 +328,7 @@
 			}
 
 			setTimeout(() => {
-				if (target.matches(':active')) {
+				if (target.matches(':active, .active')) {
 					down(target);
 				}
 			}, 10);
@@ -339,7 +343,7 @@
 		}
 
 		function navigateTo(to) {
-			to = to * 10n / 6n - 1n;
+			to = to * 10n / columnsPerRow - 1n;
 			to -= to % 10n;
 
 			if (to < 0n) {
@@ -427,11 +431,20 @@
 		}
 
 		function resize() {
+			const small = window.innerWidth < 800;
+			const limit = small ? 3333333333332n : 1666666666666n;
+			const oldColumnsPerRow = columnsPerRow;
+			columnsPerRow = small ? 3n : 6n;
 			const containerHeight = document.querySelector('.container').getBoundingClientRect().height;
 			scrollCoefficient = BigInt(Math.round(containerHeight - 140));
 			const rowsToShow = Math.floor(containerHeight / 30 + 2);
-			document.querySelector('table').innerHTML = `<tr>${'<td></td>'.repeat(6)}</tr>`.repeat(rowsToShow);
-			lastScrollPos = 1666666666666n - BigInt(rowsToShow * 10 - 20);
+			document.querySelector('table').innerHTML = `<tr>${'<td></td>'.repeat(Number(columnsPerRow))}</tr>`.repeat(rowsToShow);
+			lastScrollPos = limit - BigInt(rowsToShow * 10 - 20);
+
+			if (oldColumnsPerRow !== columnsPerRow) {
+				scrollPos = scrollPos * oldColumnsPerRow / columnsPerRow;
+			}
+
 			scrollPos = scrollPos > lastScrollPos ? lastScrollPos : scrollPos;
 		}
 
@@ -449,10 +462,10 @@
 		<div class="scroll-track" onmousedown="start(event)" ontouchstart="start(event)">
 			<div class="inner"></div>
 		</div>
-		<button class="up" onmousedown="up(event.target)" onclick="up(event.target)"></button>
+		<button class="up" ontouchstart="up(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')" onmousedown="up(event.target)" onclick="up(event.target)"></button>
 		<table ontouchstart="start(event, true)">
 		</table>
-		<button class="down" onmousedown="down(event.target)" onclick="down(event.target)"></button>
+		<button class="down" ontouchstart="down(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')" onmousedown="down(event.target)" onclick="down(event.target)"></button>
 	</div>
 	<br>
 	<label class="Navigation label">
