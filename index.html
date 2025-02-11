@@ -62,7 +62,8 @@
 				clip-path: polygon(50% 30%, 0% 70%, 100% 70%);
 			}
 
-			&:active, &.active {
+			&:active,
+			&.active {
 				background: blue;
 			}
 		}
@@ -257,6 +258,42 @@
 		let columnsPerRow = 6n;
 		let scrollCoefficient = 0n;
 
+		let inertiaInterval = null;
+
+		function applyInteria(delta) {
+			if (inertiaInterval !== null) {
+				clearInterval(inertiaInterval);
+				inertiaInterval = null;
+			}
+
+			delta /= 2n;
+
+			if (!delta) {
+				return;
+			}
+
+			let currentPosition = scrollPos;
+
+			inertiaInterval = setInterval(() => {
+				if (currentPosition !== scrollPos || !delta) {
+					clearInterval(inertiaInterval);
+					inertiaInterval = null;
+					return;
+				}
+
+				currentPosition += delta;
+
+				if (currentPosition < 0n) {
+					currentPosition = 0n;
+				} else if (currentPosition > lastScrollPos) {
+					currentPosition = lastScrollPos;
+				}
+
+				delta = (currentPosition - scrollPos) * 4n / 5n;
+
+				scrollTo(currentPosition);
+			}, 20);
+		}
 
 		function scrollTo(pos, updateInput = true) {
 			function getPosData() {
@@ -311,8 +348,18 @@
 		}
 
 		function up(target) {
-			if (scrollPos > 0n) {
-				scrollTo(scrollPos - 1n)
+			applyInteria(0n);
+
+			let nextPos = scrollPos - (target ? 1n : 4n);
+
+			if (nextPos < 0n) {
+				nextPos = 0n;
+			}
+
+			scrollTo(nextPos);
+
+			if (!target) {
+				return;
 			}
 
 			setTimeout(() => {
@@ -323,8 +370,18 @@
 		}
 
 		function down(target) {
-			if (scrollPos < lastScrollPos) {
-				scrollTo(scrollPos + 1n)
+			applyInteria(0n);
+
+			let nextPos = scrollPos + (target ? 1n : 4n);
+
+			if (nextPos > lastScrollPos) {
+				nextPos = lastScrollPos;
+			}
+
+			scrollTo(nextPos);
+
+			if (!target) {
+				return;
 			}
 
 			setTimeout(() => {
@@ -339,10 +396,14 @@
 			let newPos = BigInt(Math.floor(ev.deltaY)) + scrollPos;
 			newPos = newPos < 0n ? 0n : newPos;
 			newPos = newPos > lastScrollPos ? lastScrollPos : newPos;
+			const delta = newPos - scrollPos;
 			scrollTo(newPos);
+			applyInteria(delta);
 		}
 
 		function navigateTo(to) {
+			applyInteria(0n);
+
 			to = to * 10n / columnsPerRow - 1n;
 			to -= to % 10n;
 
@@ -358,13 +419,16 @@
 		}
 
 		let startY = -1;
+		let lastPosChange = 0n;
 		let startScrollPosition = 0n;
-		let isSscrolling = false;
+		let isScrolling = false;
 
-		function start(event, swipe = false) {
-			isSscrolling = swipe;
+		function starDrag(event, swipe = false) {
+			lastPosChange = 0n;
+			isScrolling = swipe;
+			applyInteria(0n);
 
-			if (!isSscrolling) {
+			if (!isScrolling) {
 				document.querySelector('.inner').classList.add('active');
 			}
 
@@ -379,7 +443,7 @@
 
 			startScrollPosition = scrollPos;
 
-			if (isSscrolling || event.target.closest('.inner')) {
+			if (isScrolling || event.target.closest('.inner')) {
 				return;
 			}
 
@@ -411,7 +475,7 @@
 					y = event.touches[0].clientY;
 				}
 
-				const change = isSscrolling ? -BigInt(Math.floor((y - startY) / 3)) : BigInt(Math.floor(y - startY)) * (lastScrollPos / scrollCoefficient);
+				const change = isScrolling ? -BigInt(Math.floor((y - startY) / 3)) : BigInt(Math.floor(y - startY)) * (lastScrollPos / scrollCoefficient);
 
 				let newPos = change + startScrollPosition;
 
@@ -421,6 +485,7 @@
 					newPos = lastScrollPos;
 				}
 
+				lastPosChange = newPos - scrollPos;
 				scrollTo(newPos);
 			}
 		}
@@ -428,6 +493,10 @@
 		function end(event) {
 			startY = -1;
 			document.querySelector('.inner').classList.remove('active');
+
+			if (isScrolling) {
+				applyInteria(10n * lastPosChange);
+			}
 		}
 
 		function resize() {
@@ -456,16 +525,33 @@
 		window.onmousemove = move;
 		window.addEventListener('touchmove', move, { passive: true });
 		window.onmouseup = window.ontouchend = window.ontouchcancel = end;
+		window.onkeydown = e => {
+			if (e.target instanceof HTMLInputElement) {
+				return;
+			}
+
+			if (e.key === 'ArrowDown') {
+				down();
+			}
+
+			if (e.key === 'ArrowUp') {
+				up();
+			}
+		};
 	</script>
 
 	<div class="container" onwheel="onScroll(event)">
-		<div class="scroll-track" onmousedown="start(event)" ontouchstart="start(event)">
+		<div class="scroll-track" onmousedown="starDrag(event)" ontouchstart="starDrag(event)">
 			<div class="inner"></div>
 		</div>
-		<button class="up" ontouchstart="up(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')" onmousedown="up(event.target)" onclick="up(event.target)"></button>
-		<table ontouchstart="start(event, true)">
+		<button class="up" ontouchstart="up(event.target); event.target.classList.add('active')"
+			ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')"
+			onmousedown="up(event.target)" onclick="up(event.target)"></button>
+		<table ontouchstart="starDrag(event, true)">
 		</table>
-		<button class="down" ontouchstart="down(event.target); event.target.classList.add('active')" ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')" onmousedown="down(event.target)" onclick="down(event.target)"></button>
+		<button class="down" ontouchstart="down(event.target); event.target.classList.add('active')"
+			ontouchend="event.target.classList.remove('active')" ontouchcancel="event.target.classList.remove('active')"
+			onmousedown="down(event.target)" onclick="down(event.target)"></button>
 	</div>
 	<br>
 	<label class="Navigation label">
